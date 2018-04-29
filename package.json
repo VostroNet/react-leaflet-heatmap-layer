@@ -4,6 +4,7 @@
   "description": "A custom layer for heatmaps in react-leaflet",
   "main": "lib/HeatmapLayer.js",
   "scripts": {
+    "prepublishOnly": "yarn; npm run clean; npm run transpile",
     "compile": "npm run clean; npm run transpile",
     "transpile": "./node_modules/.bin/babel src/HeatmapLayer.js --out-file lib/HeatmapLayer.js",
     "clean": "rm -rf ./lib/*",

@@ -294,102 +294,106 @@ export default class HeatmapLayer extends MapLayer {
   }
 
   redraw(): void {
-    const r = this._heatmap._r;
-    const size = this.context.map.getSize();
+    try {
+      const r = this._heatmap._r;
+      const size = this.context.map.getSize();
 
-    const maxIntensity = this.props.max === undefined
-                            ? 1
-                            : this.getMax(this.props);
+      const maxIntensity = this.props.max === undefined
+                              ? 1
+                              : this.getMax(this.props);
 
-    const maxZoom = this.props.maxZoom === undefined
-                        ? this.context.map.getMaxZoom()
-                        : this.getMaxZoom(this.props);
+      const maxZoom = this.props.maxZoom === undefined
+                          ? this.context.map.getMaxZoom()
+                          : this.getMaxZoom(this.props);
 
-    const v = 1 / Math.pow(
-      2,
-      Math.max(0, Math.min(maxZoom - this.context.map.getZoom(), 12))
-    );
-
-    const cellSize = r / 2;
-    const panePos = this.context.map._getMapPanePos();
-    const offsetX = panePos.x % cellSize;
-    const offsetY = panePos.y % cellSize;
-    const getLat = this.props.latitudeExtractor;
-    const getLng = this.props.longitudeExtractor;
-    const getIntensity = this.props.intensityExtractor;
-
-    const inBounds = (p, bounds) => bounds.contains(p);
-
-    const filterUndefined = (row) => filter(row, c => c !== undefined);
-
-    const roundResults = (results) => reduce(results, (result, row) =>
-      map(filterUndefined(row), (cell) => [
-        Math.round(cell[0]),
-        Math.round(cell[1]),
-        Math.min(cell[2], maxIntensity),
-        cell[3]
-      ]).concat(result),
-      []
-    );
-
-    const accumulateInGrid = (points, leafletMap, bounds) => reduce(points, (grid, point) => {
-      const latLng = [getLat(point), getLng(point)];
-      if (isInvalidLatLngArray(latLng)) { //skip invalid points
-        return grid;
-      }
-
-      const p = leafletMap.latLngToContainerPoint(latLng);
-
-      if (!inBounds(p, bounds)) {
-        return grid;
-      }
-
-      const x = Math.floor((p.x - offsetX) / cellSize) + 2;
-      const y = Math.floor((p.y - offsetY) / cellSize) + 2;
-
-      grid[y] = grid[y] || [];
-      const cell = grid[y][x];
-
-      const alt = getIntensity(point);
-      const k = alt * v;
-
-      if (!cell) {
-        grid[y][x] = [p.x, p.y, k, 1];
-      } else {
-        cell[0] = (cell[0] * cell[2] + p.x * k) / (cell[2] + k); // x
-        cell[1] = (cell[1] * cell[2] + p.y * k) / (cell[2] + k); // y
-        cell[2] += k; // accumulated intensity value
-        cell[3] += 1;
-      }
-
-      return grid;
-    }, []);
-
-    const getBounds = () => new L.Bounds(L.point([-r, -r]), size.add([r, r]));
-
-    const getDataForHeatmap = (points, leafletMap) => roundResults(
-        accumulateInGrid(
-          points,
-          leafletMap,
-          getBounds(leafletMap)
-        )
+      const v = 1 / Math.pow(
+        2,
+        Math.max(0, Math.min(maxZoom - this.context.map.getZoom(), 12))
       );
 
-    const data = getDataForHeatmap(this.props.points, this.context.map);
+      const cellSize = r / 2;
+      const panePos = this.context.map._getMapPanePos();
+      const offsetX = panePos.x % cellSize;
+      const offsetY = panePos.y % cellSize;
+      const getLat = this.props.latitudeExtractor;
+      const getLng = this.props.longitudeExtractor;
+      const getIntensity = this.props.intensityExtractor;
 
-    this._heatmap.clear();
-    this._heatmap.data(data).draw(this.getMinOpacity(this.props));
+      const inBounds = (p, bounds) => bounds.contains(p);
 
-    this._frame = null;
+      const filterUndefined = (row) => filter(row, c => c !== undefined);
 
-    if (this.props.onStatsUpdate && this.props.points && this.props.points.length > 0) {
-      this.props.onStatsUpdate(
-        reduce(data, (stats, point) => {
-          stats.max = point[3] > stats.max ? point[3] : stats.max;
-          stats.min = point[3] < stats.min ? point[3] : stats.min;
-          return stats;
-        }, { min: Infinity, max: -Infinity })
+      const roundResults = (results) => reduce(results, (result, row) =>
+        map(filterUndefined(row), (cell) => [
+          Math.round(cell[0]),
+          Math.round(cell[1]),
+          Math.min(cell[2], maxIntensity),
+          cell[3]
+        ]).concat(result),
+        []
       );
+
+      const accumulateInGrid = (points, leafletMap, bounds) => reduce(points, (grid, point) => {
+        const latLng = [getLat(point), getLng(point)];
+        if (isInvalidLatLngArray(latLng)) { //skip invalid points
+          return grid;
+        }
+
+        const p = leafletMap.latLngToContainerPoint(latLng);
+
+        if (!inBounds(p, bounds)) {
+          return grid;
+        }
+
+        const x = Math.floor((p.x - offsetX) / cellSize) + 2;
+        const y = Math.floor((p.y - offsetY) / cellSize) + 2;
+
+        grid[y] = grid[y] || [];
+        const cell = grid[y][x];
+
+        const alt = getIntensity(point);
+        const k = alt * v;
+
+        if (!cell) {
+          grid[y][x] = [p.x, p.y, k, 1];
+        } else {
+          cell[0] = (cell[0] * cell[2] + p.x * k) / (cell[2] + k); // x
+          cell[1] = (cell[1] * cell[2] + p.y * k) / (cell[2] + k); // y
+          cell[2] += k; // accumulated intensity value
+          cell[3] += 1;
+        }
+
+        return grid;
+      }, []);
+
+      const getBounds = () => new L.Bounds(L.point([-r, -r]), size.add([r, r]));
+
+      const getDataForHeatmap = (points, leafletMap) => roundResults(
+          accumulateInGrid(
+            points,
+            leafletMap,
+            getBounds(leafletMap)
+          )
+        );
+
+      const data = getDataForHeatmap(this.props.points, this.context.map);
+
+      this._heatmap.clear();
+      this._heatmap.data(data).draw(this.getMinOpacity(this.props));
+
+      this._frame = null;
+
+      if (this.props.onStatsUpdate && this.props.points && this.props.points.length > 0) {
+        this.props.onStatsUpdate(
+          reduce(data, (stats, point) => {
+            stats.max = point[3] > stats.max ? point[3] : stats.max;
+            stats.min = point[3] < stats.min ? point[3] : stats.min;
+            return stats;
+          }, { min: Infinity, max: -Infinity })
+        );
+      }
+    } catch (err) {
+      console.log("err", err);
     }
   }
 
